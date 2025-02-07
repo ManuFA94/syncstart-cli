@@ -197,10 +197,10 @@ def file_offset(**ka):
 %s needs 'ffmpeg -ss %s' cut to get in sync
 ==============================================================================
 """
-    if xmax > padsize // 2:
-        file, offset = in2, (padsize - xmax) / sr
-    else:
-        file, offset = in1, xmax / sr
+    file = in2
+    offset = (padsize - xmax) / sr
+    if xmax < padsize // 2:
+        offset = xmax * -1 / sr
     if not quiet:  # default
         print(sync_text % (file, offset))
     else:  # quiet
