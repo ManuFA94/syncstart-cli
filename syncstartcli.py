@@ -19,7 +19,8 @@ crop = False
 quiet = False
 loglevel = 32
 scalefactor = False
-DIVISION = 3
+DIVISION = 5
+FACTOR = 0.75
 
 ffmpegwav = 'ffmpeg -loglevel %s -ss %s -i "{}" %s -map 0:a:0 -c:a pcm_s16le -ac 1 -f wav "{}"'
 
@@ -113,7 +114,7 @@ def get_sample(infile, rate, begin):
 
 def get_nsamples(file):
     duration = get_duration(file)
-    return duration // take // DIVISION
+    return int(duration // take // DIVISION) - 1
 
 
 def corrabs(s1, s2):
@@ -129,6 +130,28 @@ def corrabs(s1, s2):
     ca = np.absolute(corr)
     xmax = np.argmax(ca)
     return ls1, ls2, padsize, xmax, ca
+
+
+def removeOutliers(inputx, inputy):
+    x = np.array(inputx)
+    y = np.array(inputy)
+
+    # Ajuste de regresión lineal
+    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+    y_pred = slope * x + intercept  # Valores predichos
+
+    # Calcular residuos
+    residuals = y - y_pred
+    std_res = np.std(residuals)
+
+    # Filtrar datos usando 2 desviaciones estándar como umbral
+    threshold = FACTOR * std_res
+    filtered_indices = np.abs(residuals) < threshold
+    x_filtered, y_filtered = x[filtered_indices], y[filtered_indices]
+
+    # Volver a calcular la regresión con los datos filtrados
+    slope_f, intercept_f, _, _, _ = scipy.stats.linregress(x_filtered, y_filtered)
+    return x_filtered, y_filtered, slope_f
 
 
 def cli_parser(**ka):
@@ -226,33 +249,43 @@ def file_offset(**ka):
     # s1, s2 = get_sample(in1, sr), get_sample(in2, sr)
     if scalefactor:
         nsamples = get_nsamples(in1)
-        samples = ()
+        offsets = []
+        intervals = list(range(0, nsamples * take * DIVISION, take * DIVISION))
         for i in range(nsamples):
             _, _, padsize, xmax, _ = corrabs(get_sample(in1, sr, i * take * DIVISION),
                                              get_sample(in2, sr, i * take * DIVISION))
             offset = (padsize - xmax) / sr if xmax > padsize // 2 else xmax * -1 / sr
-            samples.append(offset)
-        print(','.join(samples))
+            offsets.append(offset)
+        intervalsout, offsetsout, slope = removeOutliers(intervals, offsets)
+        if slope < 0:
+            atempo = 1 / (1 + slope)
+        else:
+            atempo = 1 - slope
+        offset = np.average((offsetsout + intervalsout) * atempo - intervalsout) * -1
+        sync_text = "Factor = %s   |   offset = %s ms"
+        print(sync_text % (atempo, offset))
+
+
     else:
         s1, s2 = get_sample(in1, sr), get_sample(in2, sr)
-    if normalize:
-        s1, s2 = z_score_normalization(s1), z_score_normalization(s2)
-    ls1, ls2, padsize, xmax, ca = corrabs(s1, s2)
-    sync_text = """
-==============================================================================
-%s needs 'ffmpeg -ss %s' cut to get in sync
-==============================================================================
-"""
-    file = in2
-    offset = (padsize - xmax) / sr
-    if xmax < padsize // 2:
-        offset = xmax * -1 / sr
-    if not quiet:  # default
-        print(sync_text % (file, offset))
-    else:  # quiet
-        # print csv: file_to_advance, seconds_to_advance
-        print("%s, %s" % (file, offset))
-    return file, offset
+        if normalize:
+            s1, s2 = z_score_normalization(s1), z_score_normalization(s2)
+        ls1, ls2, padsize, xmax, ca = corrabs(s1, s2)
+        sync_text = """
+    ==============================================================================
+    %s needs 'ffmpeg -ss %s' cut to get in sync
+    ==============================================================================
+    """
+        file = in2
+        offset = (padsize - xmax) / sr
+        if xmax < padsize // 2:
+            offset = xmax * -1 / sr
+        if not quiet:  # default
+            print(sync_text % (file, offset))
+        else:  # quiet
+            # print csv: file_to_advance, seconds_to_advance
+            print("%s, %s" % (file, offset))
+        return file, offset
 
 
 main = file_offset
