@@ -13,3 +13,4 @@ build
 .eggs
 
 .venv
+test
