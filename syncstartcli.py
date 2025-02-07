@@ -18,8 +18,10 @@ lowpass = 0
 crop = False
 quiet = False
 loglevel = 32
+scalefactor = False
+DIVISION = 3
 
-ffmpegwav = 'ffmpeg -loglevel %s -ss %s -i "{}" %s -map 0:a -c:a pcm_s16le -ac 1 -f wav "{}"'
+ffmpegwav = 'ffmpeg -loglevel %s -ss %s -i "{}" %s -map 0:a:0 -c:a pcm_s16le -ac 1 -f wav "{}"'
 
 audio_filters = {
     'default': 'atrim=0:%s,aresample=%s',
@@ -64,6 +66,27 @@ def get_max_rate(in1, in2):
     return max(rates)
 
 
+def get_duration(file):
+    probe_audio = 'ffprobe -v error -select_streams a:0 -show_entries format=duration -of default=noprint_wrappers=1'.split()
+    command = probe_audio
+    cmdlist = command + [file]
+    cmdstr = ' '.join(cmdlist)
+    if not quiet:
+        header(cmdstr)
+    result = subprocess.run(cmdlist,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True)
+    if result.returncode == 0:
+        if not quiet:
+            print(result.stdout)
+        return eval(result.stdout.split('=')[1])
+    else:
+        print('FAIL in:\n', cmdstr)
+        print(result.stderr)
+        exit(1)
+
+
 def in_out(command, infile, outfile):
     cmdstr = command.format(infile, outfile)
     if not quiet:
@@ -73,7 +96,7 @@ def in_out(command, infile, outfile):
         sys.exit(ret)
 
 
-def get_sample(infile, rate):
+def get_sample(infile, rate, begin):
     outname = pathlib.Path(infile).stem + '_sample'
     with tempfile.TemporaryDirectory() as tempdir:
         outfile = pathlib.Path(tempdir) / (outname)
@@ -86,6 +109,11 @@ def get_sample(infile, rate):
         in_out(ffmpegwav % (loglevel, begin, filter_string), infile, outfile)
         r, s = scipy.io.wavfile.read(outfile)
         return s
+
+
+def get_nsamples(file):
+    duration = get_duration(file)
+    return duration // take // DIVISION
 
 
 def corrabs(s1, s2):
@@ -133,6 +161,13 @@ def cli_parser(**ka):
             action='store',
             default=20,
             help='Take X seconds of the inputs to look at. (default: 20)')
+    if 'scalefactor' not in ka:
+        parser.add_argument(
+            '-s', '--scalefactor',
+            dest='scalefactor',
+            action='store_true',
+            default=False,
+            help='Calculate scale factor')
     if 'normalize' not in ka:
         parser.add_argument(
             '-n', '--normalize',
@@ -182,13 +217,24 @@ def file_offset(**ka):
     args = parser.parse_args().__dict__
     ka.update(args)
 
-    global begin, take, normalize, denoise, lowpass, crop, quiet, loglevel
+    global begin, take, normalize, scalefactor, denoise, lowpass, crop, quiet, loglevel
     in1, in2, begin, take = ka['in1'], ka['in2'], ka['begin'], ka['take']
-    normalize, denoise, lowpass = ka['normalize'], ka['denoise'], ka['lowpass']
+    normalize, scalefactor, denoise, lowpass = ka['normalize'], ka['scalefactor'], ka['denoise'], ka['lowpass']
     loglevel = 16 if quiet else 32
 
     sr = get_max_rate(in1, in2)
-    s1, s2 = get_sample(in1, sr), get_sample(in2, sr)
+    # s1, s2 = get_sample(in1, sr), get_sample(in2, sr)
+    if scalefactor:
+        nsamples = get_nsamples(in1)
+        samples = ()
+        for i in range(nsamples):
+            _, _, padsize, xmax, _ = corrabs(get_sample(in1, sr, i * take * DIVISION),
+                                             get_sample(in2, sr, i * take * DIVISION))
+            offset = (padsize - xmax) / sr if xmax > padsize // 2 else xmax * -1 / sr
+            samples.append(offset)
+        print(','.join(samples))
+    else:
+        s1, s2 = get_sample(in1, sr), get_sample(in2, sr)
     if normalize:
         s1, s2 = z_score_normalization(s1), z_score_normalization(s2)
     ls1, ls2, padsize, xmax, ca = corrabs(s1, s2)
