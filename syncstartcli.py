@@ -19,6 +19,9 @@ crop = False
 quiet = False
 loglevel = 32
 scalefactor = False
+stretch = False
+delay = False
+merge = False
 DIVISION = 5
 FACTOR = 0.75
 
@@ -154,6 +157,30 @@ def removeOutliers(inputx, inputy):
     return x_filtered, y_filtered, slope_f
 
 
+def stretch_track(infile, factor):
+    mkvmergest = 'mkvmerge -o "{}" %s --sync 0:0,%s "{}" %s'
+    command = mkvmergest
+    outfile = "archivoout.mkv"
+    cmdstr = command.format(outfile, factor, infile)
+    print(cmdstr)
+
+
+def delay_track(infile, offset):
+    mkvmergedelay = 'mkvmerge -o "{}" %s --sync 0:%s "{}" %s'
+    command = mkvmergedelay
+    outfile = "archivoout.mkv"
+    cmdstr = command.format(outfile, offset, infile)
+    print(cmdstr)
+
+
+def merge_tracks(infile, track):
+    mkvmerge = 'mkvmerge -o "{}" %s "{}" %s --language 0:es --track-name 0:"Español" "{}" %s'  # output.mkv input.mkv new_track.aac
+    outfile = "archivoout.mkv"
+    command = mkvmerge
+    cmdstr = command.format(outfile, infile, track)
+    print(cmdstr)
+
+
 def cli_parser(**ka):
     import argparse
     parser = argparse.ArgumentParser(
@@ -191,6 +218,27 @@ def cli_parser(**ka):
             action='store_true',
             default=False,
             help='Calculate scale factor')
+    if 'stretch' not in ka:
+        parser.add_argument(
+            '-st', '--stretch',
+            dest='stretch',
+            action='store_true',
+            default=False,
+            help='Stretch the audio track with the scale factor')
+    if 'delay' not in ka:
+        parser.add_argument(
+            '-o', '--offset',
+            dest='delay',
+            action='store_true',
+            default=False,
+            help='Delay the audio track with the offset')
+    if 'merge' not in ka:
+        parser.add_argument(
+            '-m', '--merge',
+            dest='merge',
+            action='store_true',
+            default=False,
+            help='Merge the modified track')
     if 'normalize' not in ka:
         parser.add_argument(
             '-n', '--normalize',
@@ -264,8 +312,16 @@ def file_offset(**ka):
         offset = np.average((offsetsout + intervalsout) * atempo - intervalsout) * -1
         sync_text = "Factor = %s   |   offset = %s ms"
         print(sync_text % (atempo, offset))
-
-
+        print(scalefactor, stretch, delay, merge)
+        if stretch:
+            print("Stretch activado")
+            stretch_track(in2, atempo)
+        if delay:
+            print("Delay activado")
+            delay_track(in2, offset)
+        if merge:
+            print("Merge activado")
+            merge_tracks(in1, in2)
     else:
         s1, s2 = get_sample(in1, sr), get_sample(in2, sr)
         if normalize:
