@@ -182,7 +182,7 @@ def stretch_track(infile, factor):
 
 
 def delay_track(infile, offset):
-    delay = round(offset * 1000, 1)
+    delay = round(offset * 1000, 0)
     mkvmergedelay = 'mkvmerge -o "{}" --sync 0:{} "{}"'
     move1 = 'mv "{}" "{}.old2"'
     move2 = 'mv "{}" "{}"'
@@ -359,7 +359,7 @@ def file_offset(**ka):
         else:
             atempo = 1 - slope
         offset = np.average((offsetsout + intervalsout) * atempo - intervalsout) * -1
-        sync_text = "Factor = %s   |   offset = %s ms"
+        sync_text = "Factor = %s   |   offset = %s s"
         print(sync_text % (atempo, offset))
         if stretch:
             stretch_track(in2, atempo)
