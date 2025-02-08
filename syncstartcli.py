@@ -190,9 +190,19 @@ def delay_track(infile, offset):
     cmdstr = command.format(outfile, offset, infile)
     cmdstrmv1 = move1.format(infile, infile)
     cmdstrmv2 = move2.format(outfile, infile)
-    print(cmdstr)
-    print(cmdstrmv1)
-    print(cmdstrmv2)
+    if not quiet:
+        header(cmdstr)
+        header(cmdstrmv1)
+        header(cmdstrmv2)
+    ret1 = os.system(cmdstr)
+    if 0 != ret1:
+        sys.exit(ret1)
+    ret2 = os.system(cmdstrmv1)
+    if 0 != ret2:
+        sys.exit(ret2)
+    ret3 = os.system(cmdstrmv2)
+    if 0 != ret3:
+        sys.exit(ret3)
 
 
 def merge_tracks(infile, track):
@@ -204,9 +214,19 @@ def merge_tracks(infile, track):
     cmdstr = command.format(outfile, infile, track)
     cmdstrmv1 = move1.format(infile, infile)
     cmdstrmv2 = move2.format(outfile, infile)
-    print(cmdstr)
-    print(cmdstrmv1)
-    print(cmdstrmv2)
+    if not quiet:
+        header(cmdstr)
+        header(cmdstrmv1)
+        header(cmdstrmv2)
+    ret1 = os.system(cmdstr)
+    if 0 != ret1:
+        sys.exit(ret1)
+    ret2 = os.system(cmdstrmv1)
+    if 0 != ret2:
+        sys.exit(ret2)
+    ret3 = os.system(cmdstrmv2)
+    if 0 != ret3:
+        sys.exit(ret3)
 
 
 def cli_parser(**ka):
