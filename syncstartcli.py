@@ -182,7 +182,7 @@ def stretch_track(infile, factor):
 
 
 def delay_track(infile, offset):
-    delay = round(offset * 1000, 0)
+    delay = int(round(offset * 1000, 0))
     mkvmergedelay = 'mkvmerge -o "{}" --sync 0:{} "{}"'
     move1 = 'mv "{}" "{}.old2"'
     move2 = 'mv "{}" "{}"'
