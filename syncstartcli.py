@@ -158,27 +158,55 @@ def removeOutliers(inputx, inputy):
 
 
 def stretch_track(infile, factor):
-    mkvmergest = 'mkvmerge -o "{}" %s --sync 0:0,%s "{}" %s'
+    mkvmergest = 'mkvmerge -o "{}" --sync 0:0,{} "{}"'
+    move1 = 'mv "{}" "{}.old1"'
+    move2 = 'mv "{}" "{}"'
     command = mkvmergest
-    outfile = "archivoout.mkv"
+    outfile = "/tmp/archivoout.mkv"
     cmdstr = command.format(outfile, factor, infile)
-    print(cmdstr)
+    cmdstrmv1 = move1.format(infile, infile)
+    cmdstrmv2 = move2.format(outfile, infile)
+    if not quiet:
+        header(cmdstr)
+        header(cmdstrmv1)
+        header(cmdstrmv2)
+    ret1 = os.system(cmdstr)
+    if 0 != ret1:
+        sys.exit(ret1)
+    ret2 = os.system(cmdstrmv1)
+    if 0 != ret2:
+        sys.exit(ret2)
+    ret3 = os.system(cmdstrmv2)
+    if 0 != ret3:
+        sys.exit(ret3)
 
 
 def delay_track(infile, offset):
-    mkvmergedelay = 'mkvmerge -o "{}" %s --sync 0:%s "{}" %s'
+    mkvmergedelay = 'mkvmerge -o "{}" --sync 0:{} "{}"'
+    move1 = 'mv "{}" "{}.old2"'
+    move2 = 'mv "{}" "{}"'
     command = mkvmergedelay
-    outfile = "archivoout.mkv"
+    outfile = "/tmp/archivoout.mkv"
     cmdstr = command.format(outfile, offset, infile)
+    cmdstrmv1 = move1.format(infile, infile)
+    cmdstrmv2 = move2.format(outfile, infile)
     print(cmdstr)
+    print(cmdstrmv1)
+    print(cmdstrmv2)
 
 
 def merge_tracks(infile, track):
-    mkvmerge = 'mkvmerge -o "{}" %s "{}" %s --language 0:es --track-name 0:"Español" "{}" %s'  # output.mkv input.mkv new_track.aac
-    outfile = "archivoout.mkv"
+    mkvmerge = 'mkvmerge -o "{}" "{}" --language 0:es --track-name 0:"Español" "{}"'  # output.mkv input.mkv new_track.aac
+    move1 = 'mv "{}" "{}.old3"'
+    move2 = 'mv "{}" "{}"'
+    outfile = "/tmp/archivoout.mkv"
     command = mkvmerge
     cmdstr = command.format(outfile, infile, track)
+    cmdstrmv1 = move1.format(infile, infile)
+    cmdstrmv2 = move2.format(outfile, infile)
     print(cmdstr)
+    print(cmdstrmv1)
+    print(cmdstrmv2)
 
 
 def cli_parser(**ka):
@@ -288,9 +316,9 @@ def file_offset(**ka):
     args = parser.parse_args().__dict__
     ka.update(args)
 
-    global begin, take, normalize, scalefactor, denoise, lowpass, crop, quiet, loglevel
+    global begin, take, normalize, scalefactor, stretch, delay, merge, denoise, lowpass, crop, quiet, loglevel
     in1, in2, begin, take = ka['in1'], ka['in2'], ka['begin'], ka['take']
-    normalize, scalefactor, denoise, lowpass = ka['normalize'], ka['scalefactor'], ka['denoise'], ka['lowpass']
+    normalize, scalefactor, stretch, delay, merge, denoise, lowpass = ka['normalize'], ka['scalefactor'], ka['stretch'], ka['delay'], ka['merge'], ka['denoise'], ka['lowpass']
     loglevel = 16 if quiet else 32
 
     sr = get_max_rate(in1, in2)
@@ -312,15 +340,11 @@ def file_offset(**ka):
         offset = np.average((offsetsout + intervalsout) * atempo - intervalsout) * -1
         sync_text = "Factor = %s   |   offset = %s ms"
         print(sync_text % (atempo, offset))
-        print(scalefactor, stretch, delay, merge)
         if stretch:
-            print("Stretch activado")
             stretch_track(in2, atempo)
         if delay:
-            print("Delay activado")
             delay_track(in2, offset)
         if merge:
-            print("Merge activado")
             merge_tracks(in1, in2)
     else:
         s1, s2 = get_sample(in1, sr), get_sample(in2, sr)
