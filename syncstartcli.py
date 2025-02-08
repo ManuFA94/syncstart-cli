@@ -182,12 +182,13 @@ def stretch_track(infile, factor):
 
 
 def delay_track(infile, offset):
+    delay = round(offset * 1000, 1)
     mkvmergedelay = 'mkvmerge -o "{}" --sync 0:{} "{}"'
     move1 = 'mv "{}" "{}.old2"'
     move2 = 'mv "{}" "{}"'
     command = mkvmergedelay
     outfile = "/tmp/archivoout.mkv"
-    cmdstr = command.format(outfile, offset, infile)
+    cmdstr = command.format(outfile, delay, infile)
     cmdstrmv1 = move1.format(infile, infile)
     cmdstrmv2 = move2.format(outfile, infile)
     if not quiet:
